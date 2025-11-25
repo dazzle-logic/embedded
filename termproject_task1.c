@@ -125,7 +125,7 @@ static void timer_cb(struct timer_list *timer)
         }
         flag = 0; // 상태를 꺼짐(0)으로 변경
     }
-    mod_timer(timer, jiffies + HZ * 2); // add_timer 대신 mod_timer 사용 권장
+    add_timer(timer, jiffies + HZ * 2); // add_timer 대신 mod_timer 사용 권장
 }
 
 static void timer_cb2(struct timer_list *timer)
@@ -136,7 +136,7 @@ static void timer_cb2(struct timer_list *timer)
     }
     gpio_direction_output(led[current_led], HIGH);
     current_led = (current_led + 1) % 4;
-    mod_timer(timer, jiffies + HZ * 2); // add_timer 대신 mod_timer 사용 권장
+    add_timer(timer, jiffies + HZ * 2); // add_timer 대신 mod_timer 사용 권장
 }
 
 static void mod3(int n)
