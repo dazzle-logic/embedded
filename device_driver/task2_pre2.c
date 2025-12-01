@@ -5,8 +5,8 @@
 #include <sys/ioctl.h>
 #include <string.h>
 
-
-[cite_start]#define LED_SW_MAGIC 'L'
+// 드라이버와 약속된 명령어들
+#define LED_SW_MAGIC        'L'
 #define IOCTL_MODE_1        _IO(LED_SW_MAGIC, 0x01)
 #define IOCTL_MODE_2        _IO(LED_SW_MAGIC, 0x02)
 #define IOCTL_MODE_3        _IO(LED_SW_MAGIC, 0x03)
@@ -14,125 +14,103 @@
 #define IOCTL_MODE_3_TOGGLE _IOW(LED_SW_MAGIC, 0x05, int)
 
 #define DEVICE_FILE "/dev/sw_led_driver"
-#define SW_RESET_INDEX 3
 
+#define SW_IDX_MODE_1 0
+#define SW_IDX_MODE_2 1
+#define SW_IDX_MODE_3 2
+#define SW_IDX_RESET  3
 
-int current_native_mode = 0; 
-
-
-void print_menu();
+// --- 함수 선언 ---
 void mode_3_control(int dev);
 
-
-
-
-
-void print_menu() {
-    printf("\n--- ES-101 SW-LED 제어 프로그램 ---\n");
-    printf("현재 모드: Mode %d\n", current_native_mode);
-    printf("----------------------------------\n");
-    printf("1. Mode 1 시작 (2초 깜빡임) [SW[0] 기능]\n");
-    printf("2. Mode 2 시작 (2초 순차 점등) [SW[1] 기능]\n");
-    printf("3. Mode 3 진입 (SW 개별 LED 제어) [SW[2] 기능]\n");
-    printf("0. 모드 리셋 및 프로그램 종료 [SW[3] 기능]\n");
-    printf("----------------------------------\n");
-    printf("선택: ");
-}
-
-
-
-
-
+// Mode 3: 개별 제어 모드 (서브 루프)
 void mode_3_control(int dev) {
     char sw_index_char;
     int sw_idx_int;
 
-    printf("\n--- Mode 3: SW 개별 제어 모드 진입 ---\n");
-    printf("SW[0], SW[1], SW[2]를 누르면 해당 LED가 토글됩니다.\n");
-    printf("SW[3] 감지 시 모드 리셋 및 메뉴로 복귀합니다.\n");
+    printf("\n[Mode 3 진입] SW[0]~[2]: LED 토글, SW[3]: 메인으로 복귀(리셋)\n");
 
     while (1) {
-        printf("스위치 입력을 대기합니다... (Blocking Read)\n");
-        
-
+        // 여기서 또 다시 입력을 기다림 (Blocking)
         if (read(dev, &sw_index_char, 1) > 0) {
             sw_idx_int = (int)sw_index_char;
-
-
-            if (sw_idx_int == SW_RESET_INDEX) {
-                printf("SW[%d] (리셋) 감지! Mode 3 종료.\n", SW_RESET_INDEX);
-
-                ioctl(dev, IOCTL_MODE_RESET, NULL);
-                current_native_mode = 0;
-                return; 
-            }
             
-
-            if (sw_idx_int >= 0 && sw_idx_int <= 2) {
-                printf("SW[%d] 감지! -> LED[%d] 토글 명령 전송\n", sw_idx_int, sw_idx_int);
-                
-
-
-                ioctl(dev, IOCTL_MODE_3_TOGGLE, sw_idx_int); 
+            // SW[3] (Reset) 버튼이 눌리면 이 함수(Mode 3)를 탈출!
+            if (sw_idx_int == SW_IDX_RESET) {
+                printf("  -> SW[3] 감지: Mode 3 종료 및 메인 복귀\n");
+                // 드라이버 상태도 리셋해주는 게 안전함
+                ioctl(dev, IOCTL_MODE_RESET, NULL);
+                return; // 함수 종료 -> main()의 while 루프로 돌아감
             }
-        } else {
 
-            perror("read failed");
-            break;
+            // SW[0], SW[1], SW[2]는 LED 토글 명령으로 사용
+            if (sw_idx_int >= 0 && sw_idx_int <= 2) {
+                printf("  -> SW[%d] 감지: LED 토글\n", sw_idx_int);
+                ioctl(dev, IOCTL_MODE_3_TOGGLE, sw_idx_int);
+            }
         }
     }
 }
 
-
-
-
-
 int main(void) {
     int dev;
-    int choice;
+    char sw_index_char; // 드라이버에서 읽어온 1바이트 데이터 저장
+    int sw_idx_int;
 
-
-    dev = open(DEVICE_FILE, O_RDWR); [cite_start]
+    // 디바이스 드라이버 열기
+    dev = open(DEVICE_FILE, O_RDWR);
     if (dev < 0) {
-        printf("드라이버 파일 열기 실패: %s\n", DEVICE_FILE);
-        printf("※ /dev/sw_led_driver 파일이 생성되었는지, 권한 설정이 666인지 확인하세요.\n");
+        printf("드라이버 열기 실패! 모듈이 올라가 있나요?\n");
         return -1;
     }
 
-    while (1) {
-        print_menu();
-        if (scanf("%d", &choice) != 1) {
-            while (getchar() != '\n');
-            printf("잘못된 입력입니다. 숫자를 입력해주세요.\n");
-            continue;
-        }
+    printf("=== SW 기반 LED 제어 프로그램 시작 ===\n");
+    printf("SW[0] (GPIO 4) : Mode 1 (깜빡임)\n");
+    printf("SW[1] (GPIO 17): Mode 2 (순차 점등)\n");
+    printf("SW[2] (GPIO 27): Mode 3 (개별 제어 진입)\n");
+    printf("SW[3] (GPIO 22): Reset (모드 끄기)\n");
+    printf("======================================\n");
 
-        switch (choice) {
-            case 1:
-                printf("Mode 1 (2초 깜빡임) 시작 명령 전송\n");
-                ioctl(dev, IOCTL_MODE_1, NULL);
-                current_native_mode = 1;
-                break;
-            case 2:
-                printf("Mode 2 (2초 순차 점등) 시작 명령 전송\n");
-                ioctl(dev, IOCTL_MODE_2, NULL);
-                current_native_mode = 2;
-                break;
-            case 3:
-                ioctl(dev, IOCTL_MODE_3, NULL);
-                current_native_mode = 3;
-                mode_3_control(dev);
-                break;
-            case 0:
-                printf("모드 리셋 및 프로그램 종료 명령 전송\n");
-                ioctl(dev, IOCTL_MODE_RESET, NULL);
-                close(dev);
-                return 0;
-            default:
-                printf("유효하지 않은 선택입니다.\n");
-                break;
+    // 메인 무한 루프 (키보드 대신 read로 대기)
+    while (1) {
+        printf("\n[메인 대기] 명령을 내릴 스위치를 눌러주세요...\n");
+        
+        // 스위치 입력 대기 (Blocking)
+        // 사용자가 스위치를 누를 때까지 여기서 프로그램은 잠듦
+        if (read(dev, &sw_index_char, 1) > 0) {
+            sw_idx_int = (int)sw_index_char; // char를 int로 변환
+            
+            // 눌린 스위치에 따라 모드 결정 (리모컨 로직)
+            switch (sw_idx_int) {
+                case SW_IDX_MODE_1: // SW[0] -> Mode 1
+                    printf("  -> SW[0] 감지: Mode 1 시작!\n");
+                    ioctl(dev, IOCTL_MODE_1, NULL);
+                    break;
+
+                case SW_IDX_MODE_2: // SW[1] -> Mode 2
+                    printf("  -> SW[1] 감지: Mode 2 시작!\n");
+                    ioctl(dev, IOCTL_MODE_2, NULL);
+                    break;
+
+                case SW_IDX_MODE_3: // SW[2] -> Mode 3 진입
+                    printf("  -> SW[2] 감지: Mode 3 진입!\n");
+                    ioctl(dev, IOCTL_MODE_3, NULL);
+                    // Mode 3는 동작 방식이 다르므로 전용 함수로 제어권을 넘김
+                    mode_3_control(dev); 
+                    break;
+
+                case SW_IDX_RESET: // SW[3] -> Reset
+                    printf("  -> SW[3] 감지: 모든 모드 리셋(OFF)\n");
+                    ioctl(dev, IOCTL_MODE_RESET, NULL);
+                    break;
+
+                default:
+                    printf("  -> 알 수 없는 입력\n");
+                    break;
+            }
         }
     }
 
+    close(dev);
     return 0;
 }
