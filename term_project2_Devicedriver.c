@@ -54,49 +54,42 @@ static int led_driver_write(struct file *file,const char *buf,size_t length, lof
   ret=copy_from_user(&mode,buf,length);
   if(ret<0) return -1;
   int mode_num=mode-'0';
-  switch (mode)
-  {
-  case '1':
-    if(current_mode!=3){
+  if(current_mode!=3){
+    if(mode=='1'){
+    current_led=0;
     current_mode=1;
     del_timer(&led_timer);
     led_timer.expires=jiffies+(2*HZ);
     add_timer(&led_timer);
-    break;
-    }
-    break;
-  
-  case '2':
-  if(current_mode!=3){
+  }
+  else if(mode=='2'){
     current_mode=2;
+    current_led=0;
     del_timer(&led_timer);
     led_timer.expires=jiffies+(2*HZ);
     add_timer(&led_timer);
-    break;
-    }
-    break;
-
-  case '3':
-    if(current_mode!=3){
+  }
+  else if(mode=='3'){
     current_mode=3;
+    current_led=0;
     del_timer(&led_timer);
     for(i=0; i<4; i++){
     gpio_direction_output(led[i],LOW);
     led_state[i]=0;
     }
      mode_num=-1;
-     break;
     }
-    break;
+  }
     
-  case '4':
+  if(mode=='4'){
     current_mode=0;
+    current_led=0;
     del_timer(&led_timer);
     for(i=0; i<4; i++)
     gpio_direction_output(led[i],LOW);
-    break;
   }
-  if(current_mode==3 && mode_num>=0 && mode_num<4){
+  
+  if(current_mode==3 && mode_num<4){
     if(led_state[mode_num]==0){
      gpio_direction_output(led[mode_num],HIGH);
      led_state[mode_num]=1;
