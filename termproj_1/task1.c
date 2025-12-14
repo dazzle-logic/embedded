@@ -126,9 +126,6 @@ irqreturn_t irq_handler(int irq, void *dev_id)
     return IRQ_HANDLED;
 }
 
-// ====================================================================
-// Module Init/Exit
-// ====================================================================
 
 static int __init switch_module_exam1_init(void)
 {
@@ -166,12 +163,12 @@ static void start_mode_reset(void)
     int i;
     printk(KERN_INFO "--- start_mode_reset: Current mode cleanup ---\n");
 
-    del_timer_sync(&mode_1_timer);
+    del_timer(&mode_1_timer);
     printk(KERN_INFO "MODE 1 Timer stopped.\n");
 
-    del_timer_sync(&mode_2_timer);
+    del_timer(&mode_2_timer);
     printk(KERN_INFO "MODE 2 Timer stopped.\n");
-    current_led = 0;화
+    current_led = 0;
 
     for (i = 0; i < 4; i++) {
         gpio_direction_output(led[i], LOW);
